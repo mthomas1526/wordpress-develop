@@ -1,0 +1,55 @@
+name: SonarQube Analysis
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  sonarQube:
+    name: SonarQube Analysis
+    runs-on: self-hosted   # Tu runner debe ser Windows
+
+    environment: sonarqube
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+
+      - name: Cache SonarScanner packages
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\${{ runner.user }}\.sonar\cache
+          key: ${{ runner.os }}-sonar
+
+      - name: Install SonarScanner (Windows)
+        shell: powershell
+        run: |
+          $scannerDir = "$env:USERPROFILE\sonar-scanner"
+          if (Test-Path $scannerDir) {
+            Remove-Item -Recurse -Force $scannerDir
+          }
+
+          $zipPath = "$env:USERPROFILE\sonar-scanner.zip"
+          Invoke-WebRequest -Uri "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-8.0.1.6346-windows-x64.zip" -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $env:USERPROFILE -Force
+          Rename-Item "$env:USERPROFILE\sonar-scanner-8.0.1.6346-windows-x64" $scannerDir
+
+          echo "$scannerDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Run SonarScanner
+        shell: cmd
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          sonar-scanner.bat -Dsonar.projectKey=Proyecto-MAThomas -Dsonar.sources=. -Dsonar.host.url=%SONAR_HOST_URL% -Dsonar.token=%SONAR_TOKEN% -Dsonar.python.version=3.10
